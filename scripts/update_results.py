@@ -1,4 +1,4 @@
-"""최근 로또 6/45 당첨 결과를 가져와 results.json과 index.html의 내장 데이터를 갱신합니다.
+"""최근 로또 6/45 당첨 결과를 가져와 index.html 안의 결과 데이터를 갱신합니다.
 
 동행복권 공식 사이트는 해외 IP(GitHub Actions, Codespaces)에서 접속이 막혀 있어
 공개 결과 페이지(redinfo.co.kr)의 회차 카드를 읽어 옵니다.
@@ -12,7 +12,6 @@ from pathlib import Path
 
 SOURCE_URL = "https://www.redinfo.co.kr/lotto/s/result"
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "results.json"
 PAGE = ROOT / "index.html"
 EMBED_RE = re.compile(r"(/\* RESULTS:START \*/\n).*?(\n\s*/\* RESULTS:END \*/)", re.S)
 COUNT = 3
@@ -61,7 +60,12 @@ def main():
     draws = parse(fetch(SOURCE_URL))[:COUNT]
     if len(draws) < COUNT:
         sys.exit(f"결과를 {COUNT}회분 찾지 못했습니다. 원본 페이지 구조가 바뀌었는지 확인하세요.")
-    if OUT.exists() and json.loads(OUT.read_text(encoding="utf-8")).get("draws") == draws:
+    page = PAGE.read_text(encoding="utf-8")
+    current = EMBED_RE.search(page)
+    if not current:
+        sys.exit("index.html에서 RESULTS:START/END 표시를 찾지 못했습니다.")
+    old = re.search(r"const RESULTS = (.*);", current[0])
+    if old and json.loads(old[1]).get("draws") == draws:
         print("새 회차 없음")
         return
     data = {
@@ -69,15 +73,9 @@ def main():
         "source": SOURCE_URL,
         "draws": draws,
     }
-    OUT.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-    page = PAGE.read_text(encoding="utf-8")
-    embed = "  const FALLBACK_RESULTS = " + json.dumps(data, ensure_ascii=False) + ";"
-    page, n = EMBED_RE.subn(lambda m: m[1] + embed + m[2], page)
-    if n != 1:
-        sys.exit("index.html에서 RESULTS:START/END 표시를 찾지 못했습니다.")
-    PAGE.write_text(page, encoding="utf-8")
-    print(f"{OUT.name}: " + ", ".join(f"{d['round']}회" for d in draws))
+    embed = "  const RESULTS = " + json.dumps(data, ensure_ascii=False) + ";"
+    PAGE.write_text(EMBED_RE.sub(lambda m: m[1] + embed + m[2], page, count=1), encoding="utf-8")
+    print(f"{PAGE.name}: " + ", ".join(f"{d['round']}회" for d in draws))
 
 
 if __name__ == "__main__":
