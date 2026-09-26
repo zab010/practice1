@@ -69,6 +69,9 @@
     line-height: 1.1;
     text-wrap: balance;
   }
+  .stats-link { font-size: 14px; font-weight: 500; color: var(--accent); text-decoration: none; }
+  .stats-link:hover { text-decoration: underline; }
+  .stats-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   header p { margin: 0; color: var(--muted); max-width: 52ch; }
 
   .controls {
@@ -196,6 +199,7 @@
   <header>
     <span class="eyebrow">Lotto 6/45</span>
     <h1>로또 번호 추첨기</h1>
+    <a class="stats-link" href="stats.html">최근 100회 번호 통계 보기 →</a>
     <p>1부터 45까지 중 중복 없이 6개를 뽑아 오름차순으로 보여줍니다. 뽑은 번호는 가장 최근 회차 당첨번호와 비교해 등수를 알려줍니다.</p>
   </header>
 
