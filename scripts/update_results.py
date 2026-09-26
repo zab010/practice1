@@ -1,4 +1,4 @@
-"""최근 로또 6/45 당첨 결과를 가져와 results.json과 lotto.html의 내장 데이터를 갱신합니다.
+"""최근 로또 6/45 당첨 결과를 가져와 results.json과 index.html의 내장 데이터를 갱신합니다.
 
 동행복권 공식 사이트는 해외 IP(GitHub Actions, Codespaces)에서 접속이 막혀 있어
 공개 결과 페이지(redinfo.co.kr)의 회차 카드를 읽어 옵니다.
@@ -13,7 +13,7 @@ from pathlib import Path
 SOURCE_URL = "https://www.redinfo.co.kr/lotto/s/result"
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "results.json"
-PAGE = ROOT / "lotto.html"
+PAGE = ROOT / "index.html"
 EMBED_RE = re.compile(r"(/\* RESULTS:START \*/\n).*?(\n\s*/\* RESULTS:END \*/)", re.S)
 COUNT = 3
 
@@ -75,7 +75,7 @@ def main():
     embed = "  const FALLBACK_RESULTS = " + json.dumps(data, ensure_ascii=False) + ";"
     page, n = EMBED_RE.subn(lambda m: m[1] + embed + m[2], page)
     if n != 1:
-        sys.exit("lotto.html에서 RESULTS:START/END 표시를 찾지 못했습니다.")
+        sys.exit("index.html에서 RESULTS:START/END 표시를 찾지 못했습니다.")
     PAGE.write_text(page, encoding="utf-8")
     print(f"{OUT.name}: " + ", ".join(f"{d['round']}회" for d in draws))
 
