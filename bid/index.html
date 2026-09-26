@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>아미이앤씨 사정률 분석</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f3f4f1;
+    --panel: #ffffff;
+    --ink: #17201c;
+    --muted: #59625d;
+    --line: #d9ddd6;
+    --grid: #e8ebe5;
+    --accent: #0f6b5c;
+    --accent-ink: #ffffff;
+    --accent-soft: #e2efeb;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --ref: #52514e;
+    --good: #0ca30c;
+    --good-ink: #0a6e0a;
+    --warn-ink: #9a4a14;
+    --chip: #eef0ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121614;
+      --panel: #1a1f1d;
+      --ink: #e9ede9;
+      --muted: #a0aaa4;
+      --line: #2c3430;
+      --grid: #242b28;
+      --accent: #4fc2ac;
+      --accent-ink: #0b1512;
+      --accent-soft: #1d302b;
+      --s1: #3987e5;
+      --s2: #d95926;
+      --ref: #c3c2b7;
+      --good: #0ca30c;
+      --good-ink: #5fd35f;
+      --warn-ink: #f0a068;
+      --chip: #242b28;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121614;
+    --panel: #1a1f1d;
+    --ink: #e9ede9;
+    --muted: #a0aaa4;
+    --line: #2c3430;
+    --grid: #242b28;
+    --accent: #4fc2ac;
+    --accent-ink: #0b1512;
+    --accent-soft: #1d302b;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --ref: #c3c2b7;
+    --good: #0ca30c;
+    --good-ink: #5fd35f;
+    --warn-ink: #f0a068;
+    --chip: #242b28;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 36px 16px 64px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  .num, td.num, .mono { font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  header { display: flex; flex-direction: column; gap: 6px; }
+  .eyebrow { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  h1 { margin: 0; font-size: clamp(28px, 5.5vw, 38px); font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); max-width: 66ch; }
+  .notice {
+    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start;
+    font-size: 13px; font-weight: 500; color: var(--warn-ink);
+    background: var(--chip); border-radius: 999px; padding: 4px 12px;
+  }
+  h2 { margin: 0; font-size: 17px; font-weight: 700; text-wrap: balance; }
+  .sub { margin: 0; font-size: 13px; color: var(--muted); max-width: 72ch; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
+  /* 요약 */
+  .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .tile .k { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .tile .v { font-size: 24px; font-weight: 600; line-height: 1.2; }
+  .tile .d { font-size: 12px; color: var(--muted); }
+
+  /* 차트 */
+  .chart { position: relative; width: 100%; }
+  svg { display: block; overflow: visible; }
+  svg text { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sq { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .dash { width: 16px; border-top: 2px dashed var(--ref); display: inline-block; }
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5;
+    background: var(--ink); color: var(--bg);
+    font-size: 12.5px; line-height: 1.5; padding: 7px 10px; border-radius: 8px;
+    white-space: nowrap; transform: translate(-50%, calc(-100% - 12px));
+  }
+  .tip b { font-weight: 600; }
+
+  /* 계산기 */
+  .calc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 20px; }
+  .fields { display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 13px; font-weight: 500; }
+  .field .hint { font-size: 12px; color: var(--muted); }
+  .field input {
+    font: inherit; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 15px;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink); width: 100%;
+  }
+  .field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .suggest { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .suggest th, .suggest td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; vertical-align: top; }
+  .suggest th:first-child, .suggest td:first-child { text-align: left; }
+  .suggest th { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .suggest tr.best td { background: var(--accent-soft); }
+  .suggest .why { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .suggest .amt { font-weight: 600; }
+
+  /* 공고 목록 */
+  .table-wrap { overflow-x: auto; }
+  table.list { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 760px; }
+  .list th, .list td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  .list th { font-size: 12px; color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--panel); }
+  .list th:nth-child(-n+2), .list td:nth-child(-n+2) { text-align: left; }
+  .list td.title { white-space: normal; min-width: 200px; }
+  .list tbody tr.row { cursor: pointer; }
+  .list tbody tr.row:hover td { background: var(--bg); }
+  .list tbody tr.row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .list .caret { display: inline-block; width: 12px; color: var(--muted); transition: transform .15s; }
+  .list tr.open .caret { transform: rotate(90deg); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .chip.win { color: var(--good-ink); }
+  .chip.low { color: var(--warn-ink); }
+
+  .detail td { background: var(--bg); white-space: normal; text-align: left; padding: 14px; }
+  .detail-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+  .detail h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+  .prelim { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .prelim div { border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font-size: 11.5px; background: var(--panel); }
+  .prelim div span { display: block; color: var(--muted); font-size: 10.5px; }
+  .prelim div.sel { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  .bids { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .bids td, .bids th { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  .bids th { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .bids td:first-child, .bids th:first-child { text-align: left; }
+  .bids tr.me td { font-weight: 600; }
+  .formula { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+  .note { font-size: 13px; color: var(--muted); margin: 0; max-width: 80ch; }
+
+  @media (max-width: 760px) {
+    .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-2, .calc, .detail-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 420px) {
+    .panel { padding: 14px; }
+    .prelim { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) { .list .caret { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="eyebrow">전자입찰 · 복수예비가격 사정률</span>
+    <h1>아미이앤씨 사정률 분석</h1>
+    <p>아미이앤씨가 참가한 공사 입찰 20건의 사정률(예정가격 ÷ 기초금액)을 모아 분포와 흐름을 보고, 과거 결과에 대입해 어느 사정률로 투찰했을 때 가장 많이 낙찰됐을지 계산합니다.</p>
+    <span class="notice">⚠ 연습용으로 임의로 만든 데이터입니다. 공고, 발주기관, 업체는 모두 가상입니다.</span>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <section class="panel" aria-labelledby="trend-title">
+    <div class="panel-head">
+      <h2 id="trend-title">공고별 사정률</h2>
+      <div class="legend">
+        <span><i class="dot" style="background: var(--s1)"></i>실제 사정률</span>
+        <span><i class="dot" style="background: var(--s2)"></i>아미이앤씨 투찰 기준 사정률</span>
+        <span><i class="dash"></i>평균</span>
+      </div>
+    </div>
+    <p class="sub">투찰 기준 사정률은 투찰금액을 기초금액과 낙찰하한율로 나눠 되돌린 값입니다. 주황 점이 파란 점 바로 위에 있을수록 낙찰에 가깝고, 아래에 있으면 하한 미달입니다.</p>
+    <div class="chart" id="trend-chart"></div>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel" aria-labelledby="hist-title">
+      <div class="panel-head"><h2 id="hist-title">사정률 분포</h2></div>
+      <p class="sub" id="hist-sub"></p>
+      <div class="chart" id="hist-chart"></div>
+    </section>
+    <section class="panel" aria-labelledby="pick-title">
+      <div class="panel-head">
+        <h2 id="pick-title">예비가격 번호별 채택 횟수</h2>
+      </div>
+      <p class="sub" id="pick-sub"></p>
+      <div class="chart" id="pick-chart"></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="sim-title">
+    <div class="panel-head">
+      <h2 id="sim-title">과거 20건에 대입한 가상 낙찰 횟수</h2>
+      <div class="legend"><span><i class="sq" style="background: var(--s1)"></i>낙찰 횟수</span></div>
+    </div>
+    <p class="sub">아미이앤씨가 모든 공고에 같은 사정률로 투찰했다면(투찰금액 = 기초금액 × 사정률 × 낙찰하한율) 20건 중 몇 건을 낙찰받았을지 계산했습니다. 다른 업체의 투찰은 실제 그대로 둡니다.</p>
+    <div class="chart" id="sim-chart"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="calc-title">
+    <h2 id="calc-title">다음 공고 투찰금액 계산</h2>
+    <div class="calc">
+      <div class="fields">
+        <div class="field">
+          <label for="in-base">기초금액 (원)</label>
+          <input id="in-base" inputmode="numeric" autocomplete="off" value="1,284,600,000">
+        </div>
+        <div class="field">
+          <label for="in-rate">낙찰하한율 (%)</label>
+          <input id="in-rate" inputmode="decimal" autocomplete="off" value="88.745">
+          <span class="hint" id="rate-hint"></span>
+        </div>
+        <div class="field">
+          <label for="in-assess">직접 정한 사정률 (%)</label>
+          <input id="in-assess" inputmode="decimal" autocomplete="off" value="100.000">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="suggest" id="suggest"></table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="list-title">
+    <div class="panel-head">
+      <h2 id="list-title">입찰 결과 20건</h2>
+      <span class="sub">행을 누르면 복수예비가격과 업체별 투찰 내역이 열립니다.</span>
+    </div>
+    <div class="table-wrap">
+      <table class="list" id="list"></table>
+    </div>
+  </section>
+
+  <p class="note">계산 방식: 기초금액 ±3% 안에서 복수예비가격 15개를 만들고, 참가 업체 5곳이 2개씩 고른 번호 중 많이 뽑힌 4개의 평균을 예정가격으로 삼았습니다. 낙찰하한가(예정가격 × 낙찰하한율) 이상 최저가 투찰 업체가 낙찰됩니다. 실제 나라장터에서는 모든 참가 업체의 선택으로 예정가격이 정해지고, 적격심사 점수도 반영됩니다. 낙찰하한율은 기초금액 규모에 따른 예시 값이니 실제 공고문에서 확인하세요.</p>
+</div>
+
+<script>
+(() => {
+  /* BIDS:START */
+  const DATA = {"me":"아미이앤씨","bids":[{"no":"R26BK10248870","title":"라온도 건설본부 배수로 정비공사","date":"2026-03-14","base":2718036000,"lowerRate":88.745,"prelim":[2655286020.0,2731093280.0,2748824380.0,2774412950.0,2717270600.0,2750091070.0,2668024620.0,2703175210.0,2645069660.0,2761400500.0,2673302520.0,2676710950.0,2765878720.0,2687020130.0,2725114190.0],"chosen":[2,6,10,12],"planned":2714007560,"assess":99.8518,"floor":2408546010.0,"bids":[{"company":"아미이앤씨","amount":2394021130,"pick":[6,8],"bidRate":88.0791,"impliedAssess":99.2496,"result":"하한 미달"},{"company":"한결건설","amount":2383338767,"pick":[7,10],"bidRate":87.6861,"impliedAssess":98.8068,"result":"하한 미달"},{"company":"소담개발","amount":2446029605,"pick":[11,12],"bidRate":89.9925,"impliedAssess":101.4058,"result":"탈락"},{"company":"누리토건","amount":2440073823,"pick":[2,12],"bidRate":89.7734,"impliedAssess":101.1588,"result":"낙찰"},{"company":"다온건설","amount":2456527932,"pick":[6,10],"bidRate":90.3788,"impliedAssess":101.841,"result":"탈락"}]},{"no":"R26BK10250198","title":"새솔군 상수도 관로 교체공사","date":"2026-03-20","base":1831477000,"lowerRate":88.745,"prelim":[1839700840.0,1810201350.0,1833099080.0,1886084680.0,1876832490.0,1875389500.0,1866316910.0,1795119920.0,1882132290.0,1884250380.0,1878281590.0,1810801030.0,1861399510.0,1820195960.0,1823241750.0],"chosen":[0,6,7,8],"planned":1845817490,"assess":100.783,"floor":1638070732.0,"bids":[{"company":"아미이앤씨","amount":1629556368,"pick":[8,9],"bidRate":88.975,"impliedAssess":100.2592,"result":"하한 미달"},{"company":"청솔이엔지","amount":1629364911,"pick":[7,8],"bidRate":88.9645,"impliedAssess":100.2474,"result":"하한 미달"},{"company":"누리토건","amount":1617826806,"pick":[2,14],"bidRate":88.3345,"impliedAssess":99.5375,"result":"하한 미달"},{"company":"바름종합건설","amount":1617891885,"pick":[0,6],"bidRate":88.3381,"impliedAssess":99.5415,"result":"하한 미달"},{"company":"소담개발","amount":1647829458,"pick":[0,4],"bidRate":89.9727,"impliedAssess":101.3834,"result":"낙찰"}]},{"no":"R26BK10258643","title":"새솔군 하천 호안 정비공사","date":"2026-03-24","base":1963847000,"lowerRate":88.745,"prelim":[1914934220.0,1910856150.0,1927652690.0,1952069680.0,1919719540.0,1954619430.0,1936063330.0,1970446890.0,1994402300.0,1935283630.0,1928021640.0,1959723400.0,1905080770.0,1943817110.0,1975735810.0],"chosen":[8,9,10,11],"planned":1954357742,"assess":99.5168,"floor":1734394779.0,"bids":[{"company":"아미이앤씨","amount":1749483099,"pick":[6,13],"bidRate":89.0845,"impliedAssess":100.3825,"result":"낙찰"},{"company":"바름종합건설","amount":1775607330,"pick":[10,11],"bidRate":90.4147,"impliedAssess":101.8815,"result":"탈락"},{"company":"소담개발","amount":1763590447,"pick":[8,10],"bidRate":89.8028,"impliedAssess":101.192,"result":"탈락"},{"company":"한결건설","amount":1767724637,"pick":[2,9],"bidRate":90.0134,"impliedAssess":101.4292,"result":"탈락"},{"company":"누리토건","amount":1726136715,"pick":[1,9],"bidRate":87.8957,"impliedAssess":99.043,"result":"하한 미달"}]},{"no":"R26BK10265236","title":"라온도 건설본부 도로 포장 보수공사","date":"2026-03-30","base":2172953000,"lowerRate":88.745,"prelim":[2160029070.0,2168172160.0,2188034520.0,2121985050.0,2176948950.0,2144046270.0,2183443690.0,2205619410.0,2176777560.0,2128073970.0,2115806570.0,2202014820.0,2185015010.0,2228407890.0,2174927740.0],"chosen":[3,7,13,14],"planned":2182735022,"assess":100.4502,"floor":1937068196.0,"bids":[{"company":"아미이앤씨","amount":1907447040,"pick":[13,14],"bidRate":87.7813,"impliedAssess":98.9141,"result":"하한 미달"},{"company":"한결건설","amount":1957170454,"pick":[3,11],"bidRate":90.0696,"impliedAssess":101.4926,"result":"탈락"},{"company":"푸른산업개발","amount":1943185579,"pick":[4,7],"bidRate":89.426,"impliedAssess":100.7674,"result":"낙찰"},{"company":"소담개발","amount":1924283207,"pick":[3,13],"bidRate":88.5561,"impliedAssess":99.7872,"result":"하한 미달"},{"company":"다온건설","amount":1928442756,"pick":[2,12],"bidRate":88.7476,"impliedAssess":100.0029,"result":"하한 미달"}]},{"no":"R26BK10272866","title":"한빛시 노후 옹벽 보강공사","date":"2026-04-09","base":1816970000,"lowerRate":88.745,"prelim":[1843593160.0,1772893550.0,1774955340.0,1860888090.0,1828566760.0,1853440860.0,1810250400.0,1842296200.0,1824584880.0,1849793430.0,1830126480.0,1812063540.0,1825262850.0,1829937700.0,1784896280.0],"chosen":[2,4,11,13],"planned":1811380835,"assess":99.6924,"floor":1607509923.0,"bids":[{"company":"아미이앤씨","amount":1618160059,"pick":[2,13],"bidRate":89.0582,"impliedAssess":100.3529,"result":"탈락"},{"company":"푸른산업개발","amount":1610845233,"pick":[5,11],"bidRate":88.6556,"impliedAssess":99.8992,"result":"탈락"},{"company":"소담개발","amount":1608733253,"pick":[4,9],"bidRate":88.5393,"impliedAssess":99.7683,"result":"낙찰"},{"company":"누리토건","amount":1599631499,"pick":[11,14],"bidRate":88.0384,"impliedAssess":99.2038,"result":"하한 미달"},{"company":"다온건설","amount":1602055133,"pick":[4,11],"bidRate":88.1718,"impliedAssess":99.3541,"result":"하한 미달"}]},{"no":"R26BK10276180","title":"한빛시 초등학교 외벽 방수공사","date":"2026-04-14","base":973381000,"lowerRate":89.745,"prelim":[974402270.0,972741120.0,995319350.0,969501240.0,963827170.0,984798240.0,962582290.0,993872200.0,1000055810.0,984052040.0,1001210320.0,989221710.0,1001738390.0,998285190.0,983262670.0],"chosen":[3,5,7,8],"planned":987056872,"assess":101.405,"floor":885834190.0,"bids":[{"company":"아미이앤씨","amount":884386992,"pick":[3,8],"bidRate":90.8572,"impliedAssess":101.2393,"result":"하한 미달"},{"company":"누리토건","amount":882430819,"pick":[7,8],"bidRate":90.6563,"impliedAssess":101.0154,"result":"하한 미달"},{"company":"청솔이엔지","amount":886243723,"pick":[7,11],"bidRate":91.048,"impliedAssess":101.4519,"result":"낙찰"},{"company":"푸른산업개발","amount":884068506,"pick":[5,7],"bidRate":90.8245,"impliedAssess":101.2029,"result":"하한 미달"},{"company":"한결건설","amount":878358299,"pick":[2,3],"bidRate":90.2379,"impliedAssess":100.5492,"result":"하한 미달"}]},{"no":"R26BK10279795","title":"해밀시 초등학교 외벽 방수공사","date":"2026-04-19","base":1826405000,"lowerRate":88.745,"prelim":[1830314250.0,1795177410.0,1783567100.0,1805515000.0,1790932770.0,1782162660.0,1833323060.0,1806721110.0,1792463120.0,1860060110.0,1835122820.0,1784580190.0,1815055200.0,1817420060.0,1783358220.0],"chosen":[4,5,11,12],"planned":1793182705,"assess":98.181,"floor":1591359992.0,"bids":[{"company":"아미이앤씨","amount":1632814346,"pick":[5,11],"bidRate":89.4005,"impliedAssess":100.7386,"result":"탈락"},{"company":"한결건설","amount":1630481197,"pick":[4,12],"bidRate":89.2727,"impliedAssess":100.5946,"result":"탈락"},{"company":"누리토건","amount":1600731851,"pick":[0,13],"bidRate":87.6439,"impliedAssess":98.7592,"result":"낙찰"},{"company":"다온건설","amount":1634729681,"pick":[2,14],"bidRate":89.5053,"impliedAssess":100.8567,"result":"탈락"},{"company":"소담개발","amount":1640225568,"pick":[4,12],"bidRate":89.8062,"impliedAssess":101.1958,"result":"탈락"}]},{"no":"R26BK10286354","title":"누리군 도로 포장 보수공사","date":"2026-04-26","base":1882032000,"lowerRate":88.745,"prelim":[1886846090.0,1926298800.0,1836368280.0,1908553920.0,1917630720.0,1849043320.0,1902695970.0,1872407000.0,1868775610.0,1906012950.0,1855341120.0,1882400360.0,1902752240.0,1854608370.0,1898878090.0],"chosen":[1,5,12,14],"planned":1894243112,"assess":100.6488,"floor":1681046050.0,"bids":[{"company":"아미이앤씨","amount":1712721879,"pick":[5,9],"bidRate":91.0039,"impliedAssess":102.5453,"result":"낙찰"},{"company":"다온건설","amount":1641588688,"pick":[8,14],"bidRate":87.2243,"impliedAssess":98.2864,"result":"하한 미달"},{"company":"바름종합건설","amount":1680926774,"pick":[5,12],"bidRate":89.3145,"impliedAssess":100.6417,"result":"하한 미달"},{"company":"청솔이엔지","amount":1677928990,"pick":[1,12],"bidRate":89.1552,"impliedAssess":100.4622,"result":"하한 미달"},{"company":"누리토건","amount":1668638069,"pick":[1,12],"bidRate":88.6615,"impliedAssess":99.9059,"result":"하한 미달"}]},{"no":"R26BK10294250","title":"해밀시 노후 옹벽 보강공사","date":"2026-05-03","base":1289020000,"lowerRate":88.745,"prelim":[1276162310.0,1293226490.0,1269393720.0,1272485680.0,1314852230.0,1274146660.0,1326037530.0,1290754280.0,1255432590.0,1305611650.0,1314754150.0,1306540260.0,1323672660.0,1323415190.0,1308503480.0],"chosen":[2,6,11,12],"planned":1306411042,"assess":101.3492,"floor":1159374480.0,"bids":[{"company":"아미이앤씨","amount":1163542490,"pick":[2,6],"bidRate":90.2657,"impliedAssess":101.7135,"result":"탈락"},{"company":"누리토건","amount":1161823879,"pick":[2,12],"bidRate":90.1323,"impliedAssess":101.5633,"result":"탈락"},{"company":"한결건설","amount":1161438550,"pick":[8,11],"bidRate":90.1024,"impliedAssess":101.5296,"result":"낙찰"},{"company":"다온건설","amount":1157581077,"pick":[2,9],"bidRate":89.8032,"impliedAssess":101.1924,"result":"하한 미달"},{"company":"푸른산업개발","amount":1162137643,"pick":[3,4],"bidRate":90.1567,"impliedAssess":101.5907,"result":"탈락"}]},{"no":"R26BK10296522","title":"한빛시 상수도 관로 교체공사","date":"2026-05-13","base":1999182000,"lowerRate":88.745,"prelim":[1950207710.0,1948622460.0,2015485660.0,2012921120.0,1951351380.0,1971542230.0,2056413850.0,2037952370.0,1941303200.0,2049993530.0,2002015480.0,1982861500.0,2035802990.0,2056943380.0,1947191270.0],"chosen":[1,5,7,8],"planned":1974855065,"assess":98.7832,"floor":1752585128.0,"bids":[{"company":"아미이앤씨","amount":1757904291,"pick":[1,8],"bidRate":87.9312,"impliedAssess":99.083,"result":"탈락"},{"company":"다온건설","amount":1817609631,"pick":[5,7],"bidRate":90.9177,"impliedAssess":102.4482,"result":"탈락"},{"company":"청솔이엔지","amount":1779693716,"pick":[1,11],"bidRate":89.0211,"impliedAssess":100.3111,"result":"탈락"},{"company":"바름종합건설","amount":1795553857,"pick":[1,14],"bidRate":89.8144,"impliedAssess":101.2051,"result":"탈락"},{"company":"푸른산업개발","amount":1754402992,"pick":[5,7],"bidRate":87.756,"impliedAssess":98.8856,"result":"낙찰"}]},{"no":"R26BK10301619","title":"라온도 건설본부 노후 옹벽 보강공사","date":"2026-05-19","base":3149293000,"lowerRate":88.745,"prelim":[3126233370.0,3133453000.0,3189905510.0,3060565580.0,3223579820.0,3143066280.0,3164322800.0,3082975160.0,3088075500.0,3169423970.0,3094376230.0,3136405520.0,3179502400.0,3173441130.0,3055186730.0],"chosen":[1,8,10,11],"planned":3113077562,"assess":98.85,"floor":2762700683.0,"bids":[{"company":"아미이앤씨","amount":2827022279,"pick":[11,12],"bidRate":89.7669,"impliedAssess":101.1515,"result":"탈락"},{"company":"다온건설","amount":2814650127,"pick":[10,13],"bidRate":89.374,"impliedAssess":100.7088,"result":"탈락"},{"company":"누리토건","amount":2790111452,"pick":[1,11],"bidRate":88.5949,"impliedAssess":99.8308,"result":"낙찰"},{"company":"한결건설","amount":2822603805,"pick":[1,8],"bidRate":89.6266,"impliedAssess":100.9934,"result":"탈락"},{"company":"소담개발","amount":2831230964,"pick":[6,10],"bidRate":89.9005,"impliedAssess":101.3021,"result":"탈락"}]},{"no":"R26BK10305822","title":"새솔군 보도 정비공사","date":"2026-05-30","base":710916000,"lowerRate":89.745,"prelim":[712637840.0,693715210.0,708200170.0,695889520.0,711559160.0,709571900.0,718243430.0,719524970.0,715843020.0,713770460.0,715156770.0,705712490.0,698790820.0,704930080.0,731921790.0],"chosen":[8,10,13,14],"planned":716962915,"assess":100.8506,"floor":643438369.0,"bids":[{"company":"아미이앤씨","amount":640127370,"pick":[0,8],"bidRate":90.0426,"impliedAssess":100.3316,"result":"하한 미달"},{"company":"바름종합건설","amount":643322857,"pick":[4,14],"bidRate":90.4921,"impliedAssess":100.8325,"result":"하한 미달"},{"company":"다온건설","amount":634998664,"pick":[10,13],"bidRate":89.3212,"impliedAssess":99.5278,"result":"하한 미달"},{"company":"소담개발","amount":645735773,"pick":[10,14],"bidRate":90.8315,"impliedAssess":101.2107,"result":"탈락"},{"company":"누리토건","amount":644894301,"pick":[8,11],"bidRate":90.7132,"impliedAssess":101.0788,"result":"낙찰"}]},{"no":"R26BK10314113","title":"누리군 도로 포장 보수공사","date":"2026-06-08","base":858275000,"lowerRate":89.745,"prelim":[869302540.0,837512680.0,874981600.0,872254540.0,878703940.0,833862980.0,869248730.0,869478100.0,877189720.0,874254700.0,881683670.0,871495480.0,836988300.0,869612130.0,857851970.0],"chosen":[3,5,7,8],"planned":863196335,"assess":100.5734,"floor":774675551.0,"bids":[{"company":"아미이앤씨","amount":777950932,"pick":[1,4],"bidRate":90.6412,"impliedAssess":100.9986,"result":"낙찰"},{"company":"소담개발","amount":771929750,"pick":[3,5],"bidRate":89.9397,"impliedAssess":100.2169,"result":"하한 미달"},{"company":"다온건설","amount":759537913,"pick":[3,7],"bidRate":88.4959,"impliedAssess":98.6081,"result":"하한 미달"},{"company":"청솔이엔지","amount":766638260,"pick":[8,9],"bidRate":89.3231,"impliedAssess":99.5299,"result":"하한 미달"},{"company":"한결건설","amount":770632366,"pick":[2,8],"bidRate":89.7885,"impliedAssess":100.0485,"result":"하한 미달"}]},{"no":"R26BK10321489","title":"새솔군 도로 포장 보수공사","date":"2026-06-18","base":784976000,"lowerRate":89.745,"prelim":[789683380.0,789130680.0,795580220.0,808231300.0,783915950.0,773918300.0,766239270.0,764297170.0,789658360.0,790930610.0,797007190.0,779499720.0,774219070.0,785384970.0,799848700.0],"chosen":[8,11,12,14],"planned":785806462,"assess":100.1058,"floor":705222010.0,"bids":[{"company":"아미이앤씨","amount":709329928,"pick":[8,12],"bidRate":90.3633,"impliedAssess":100.6889,"result":"탈락"},{"company":"다온건설","amount":715920828,"pick":[10,11],"bidRate":91.2029,"impliedAssess":101.6245,"result":"탈락"},{"company":"한결건설","amount":719058124,"pick":[3,14],"bidRate":91.6026,"impliedAssess":102.0698,"result":"탈락"},{"company":"푸른산업개발","amount":711542790,"pick":[4,14],"bidRate":90.6452,"impliedAssess":101.003,"result":"탈락"},{"company":"바름종합건설","amount":709307015,"pick":[1,13],"bidRate":90.3603,"impliedAssess":100.6857,"result":"낙찰"}]},{"no":"R26BK10329997","title":"가람시 농로 포장공사","date":"2026-06-25","base":2364652000,"lowerRate":88.745,"prelim":[2432289100.0,2311910010.0,2358519470.0,2372770310.0,2401129040.0,2359677780.0,2379921420.0,2388614890.0,2391708790.0,2354521800.0,2310437670.0,2348344830.0,2315334600.0,2312729740.0,2414127630.0],"chosen":[1,5,9,10],"planned":2334136815,"assess":98.7095,"floor":2071429717.0,"bids":[{"company":"아미이앤씨","amount":2102260705,"pick":[1,9],"bidRate":88.9036,"impliedAssess":100.1787,"result":"탈락"},{"company":"청솔이엔지","amount":2099868063,"pick":[5,10],"bidRate":88.8024,"impliedAssess":100.0647,"result":"낙찰"},{"company":"바름종합건설","amount":2104307879,"pick":[2,9],"bidRate":88.9902,"impliedAssess":100.2763,"result":"탈락"},{"company":"소담개발","amount":2113950999,"pick":[5,13],"bidRate":89.398,"impliedAssess":100.7358,"result":"탈락"},{"company":"한결건설","amount":2116786767,"pick":[10,12],"bidRate":89.5179,"impliedAssess":100.8709,"result":"탈락"}]},{"no":"R26BK10331878","title":"한빛시 주차장 확장공사","date":"2026-06-29","base":2894554000,"lowerRate":88.745,"prelim":[2865674820.0,2884116330.0,2973821330.0,2975032390.0,2874152150.0,2848815790.0,2896599780.0,2836813620.0,2959763000.0,2882127710.0,2825647790.0,2808912890.0,2915933620.0,2876840440.0,2947164630.0],"chosen":[2,7,10,11],"planned":2861298908,"assess":98.8511,"floor":2539259716.0,"bids":[{"company":"아미이앤씨","amount":2565473585,"pick":[5,7],"bidRate":88.631,"impliedAssess":99.8716,"result":"탈락"},{"company":"청솔이엔지","amount":2580448980,"pick":[2,10],"bidRate":89.1484,"impliedAssess":100.4546,"result":"탈락"},{"company":"누리토건","amount":2544853505,"pick":[3,9],"bidRate":87.9187,"impliedAssess":99.0689,"result":"낙찰"},{"company":"다온건설","amount":2531088053,"pick":[7,10],"bidRate":87.4431,"impliedAssess":98.533,"result":"하한 미달"},{"company":"한결건설","amount":2565505504,"pick":[11,14],"bidRate":88.6322,"impliedAssess":99.8728,"result":"탈락"}]},{"no":"R26BK10335703","title":"누리군 배수로 정비공사","date":"2026-07-10","base":2814764000,"lowerRate":88.745,"prelim":[2761177680.0,2870096160.0,2814105840.0,2794803740.0,2767373530.0,2890039340.0,2809935980.0,2745751850.0,2831038630.0,2874177500.0,2839507730.0,2767968700.0,2862709310.0,2842855850.0,2875436310.0],"chosen":[2,4,5,7],"planned":2804317640,"assess":99.6289,"floor":2488691690.0,"bids":[{"company":"아미이앤씨","amount":2467703335,"pick":[0,4],"bidRate":87.67,"impliedAssess":98.7887,"result":"하한 미달"},{"company":"바름종합건설","amount":2486211265,"pick":[5,7],"bidRate":88.3275,"impliedAssess":99.5296,"result":"하한 미달"},{"company":"소담개발","amount":2516739419,"pick":[7,11],"bidRate":89.4121,"impliedAssess":100.7517,"result":"탈락"},{"company":"누리토건","amount":2475272849,"pick":[2,5],"bidRate":87.9389,"impliedAssess":99.0917,"result":"하한 미달"},{"company":"한결건설","amount":2499247945,"pick":[1,12],"bidRate":88.7907,"impliedAssess":100.0515,"result":"낙찰"}]},{"no":"R26BK10339231","title":"가람시 노후 옹벽 보강공사","date":"2026-07-19","base":249917000,"lowerRate":89.745,"prelim":[253333410.0,256296030.0,243773960.0,247189570.0,242780990.0,250989750.0,244418470.0,244103130.0,253256050.0,249304780.0,251459200.0,250171710.0,244179480.0,243645810.0,251979030.0],"chosen":[5,8,9,14],"planned":251382402,"assess":100.5864,"floor":225603137.0,"bids":[{"company":"아미이앤씨","amount":230469851,"pick":[3,9],"bidRate":92.2186,"impliedAssess":102.7562,"result":"낙찰"},{"company":"바름종합건설","amount":222893614,"pick":[8,11],"bidRate":89.1871,"impliedAssess":99.3783,"result":"하한 미달"},{"company":"소담개발","amount":222401774,"pick":[5,14],"bidRate":88.9903,"impliedAssess":99.159,"result":"하한 미달"},{"company":"다온건설","amount":223841920,"pick":[8,14],"bidRate":89.5665,"impliedAssess":99.8011,"result":"하한 미달"},{"company":"누리토건","amount":225498660,"pick":[8,13],"bidRate":90.2294,"impliedAssess":100.5398,"result":"하한 미달"}]},{"no":"R26BK10341503","title":"새솔군 보도 정비공사","date":"2026-07-26","base":1175862000,"lowerRate":88.745,"prelim":[1147943610.0,1143966740.0,1144554150.0,1207651820.0,1143744110.0,1188387680.0,1168687230.0,1160297430.0,1154128490.0,1154545950.0,1176891100.0,1188708480.0,1148776130.0,1172592090.0,1188650610.0],"chosen":[3,5,8,11],"planned":1184719118,"assess":100.7532,"floor":1051378982.0,"bids":[{"company":"아미이앤씨","amount":1043798941,"pick":[5,14],"bidRate":88.7688,"impliedAssess":100.0269,"result":"하한 미달"},{"company":"소담개발","amount":1052811321,"pick":[3,6],"bidRate":89.5353,"impliedAssess":100.8905,"result":"낙찰"},{"company":"누리토건","amount":1064438510,"pick":[7,9],"bidRate":90.5241,"impliedAssess":102.0047,"result":"탈락"},{"company":"청솔이엔지","amount":1049560268,"pick":[8,13],"bidRate":89.2588,"impliedAssess":100.579,"result":"하한 미달"},{"company":"바름종합건설","amount":1055723211,"pick":[3,11],"bidRate":89.7829,"impliedAssess":101.1696,"result":"탈락"}]},{"no":"R26BK10342781","title":"도담시 교육지원청 배수로 정비공사","date":"2026-08-04","base":1562596000,"lowerRate":88.745,"prelim":[1587639110.0,1575529750.0,1533755790.0,1567228500.0,1580921870.0,1540577880.0,1524502640.0,1528322250.0,1526959990.0,1581235960.0,1582983860.0,1564108300.0,1540672660.0,1582407860.0,1543138550.0],"chosen":[0,2,3,11],"planned":1563182925,"assess":100.0376,"floor":1387246687.0,"bids":[{"company":"아미이앤씨","amount":1394770064,"pick":[11,14],"bidRate":89.2598,"impliedAssess":100.5801,"result":"탈락"},{"company":"바름종합건설","amount":1391956176,"pick":[0,11],"bidRate":89.0797,"impliedAssess":100.3772,"result":"탈락"},{"company":"한결건설","amount":1393523109,"pick":[0,11],"bidRate":89.18,"impliedAssess":100.4902,"result":"탈락"},{"company":"다온건설","amount":1390064768,"pick":[2,3],"bidRate":88.9587,"impliedAssess":100.2408,"result":"낙찰"},{"company":"소담개발","amount":1395202699,"pick":[2,3],"bidRate":89.2875,"impliedAssess":100.6113,"result":"탈락"}]}]};
+  /* BIDS:END */
+
+  const ME = DATA.me;
+  const BIDS = DATA.bids || [];
+  const NS = "http://www.w3.org/2000/svg";
+  const $ = id => document.getElementById(id);
+  const won = n => Math.round(n).toLocaleString("ko-KR");
+  const pct = (n, d = 3) => n.toFixed(d);
+  const eok = n => (n / 1e8).toLocaleString("ko-KR", { maximumFractionDigits: 2 }) + "억";
+
+  const mine = b => b.bids.find(x => x.company === ME);
+  const winnerOf = b => b.bids.find(x => x.result === "낙찰");
+
+  function lowerRateFor(base) {
+    if (base < 1e9) return 89.745;
+    if (base < 5e9) return 88.745;
+    return 87.495;
+  }
+
+  // ---------- 통계 ----------
+  const rates = BIDS.map(b => b.assess);
+  const mean = rates.reduce((a, b) => a + b, 0) / rates.length;
+  const sd = Math.sqrt(rates.reduce((a, b) => a + (b - mean) ** 2, 0) / (rates.length - 1));
+  const sortedRates = [...rates].sort((a, b) => a - b);
+  const median = (sortedRates[9] + sortedRates[10]) / 2;
+
+  // 같은 사정률로 모든 공고에 투찰했을 때 낙찰 건수
+  function simulate(x) {
+    let wins = 0;
+    const won_ = [];
+    BIDS.forEach(b => {
+      const amt = Math.floor(b.base * x / 100 * b.lowerRate / 100);
+      if (amt < b.floor) return;
+      const rivals = b.bids.filter(r => r.company !== ME && r.amount >= b.floor);
+      if (rivals.every(r => r.amount > amt)) { wins++; won_.push(b.no); }
+    });
+    return { wins, won: won_ };
+  }
+  const SIM = [];
+  for (let i = 0; i <= 600; i++) {
+    const x = +(97 + i * 0.01).toFixed(2);
+    SIM.push({ x, ...simulate(x) });
+  }
+  const bestWins = Math.max(...SIM.map(s => s.wins));
+  // 최고 낙찰 횟수가 나오는 가장 넓은 연속 구간
+  let bestRange = null;
+  for (let i = 0; i < SIM.length; i++) {
+    if (SIM[i].wins !== bestWins) continue;
+    let j = i;
+    while (j + 1 < SIM.length && SIM[j + 1].wins === bestWins) j++;
+    if (!bestRange || j - i > bestRange[1] - bestRange[0]) bestRange = [i, j];
+    i = j;
+  }
+  const bestLo = SIM[bestRange[0]].x, bestHi = SIM[bestRange[1]].x;
+  const bestMid = +((bestLo + bestHi) / 2).toFixed(2);
+
+  // ---------- 차트 도구 ----------
+  function svgEl(tag, attrs, parent) {
+    const el = document.createElementNS(NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    if (parent) parent.append(el);
+    return el;
+  }
+  function text(parent, x, y, str, attrs = {}) {
+    const t = svgEl("text", { x, y, "font-size": 11, fill: "var(--muted)", ...attrs }, parent);
+    t.textContent = str;
+    return t;
+  }
+  function barPath(x, y, w, h, r) {
+    if (h <= 0) return "";
+    r = Math.min(r, w / 2, h);
+    return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+  }
+  function frame(host, H, m) {
+    host.replaceChildren();
+    const W = Math.max(host.clientWidth, 280);
+    const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" }, host);
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    tip.hidden = true;
+    host.append(tip);
+    const show = (html, x, y) => {
+      tip.innerHTML = html;
+      tip.hidden = false;
+      tip.style.left = Math.min(Math.max(x, 90), W - 90) + "px";
+      tip.style.top = y + "px";
+    };
+    return { svg, W, H, pw: W - m.l - m.r, ph: H - m.t - m.b, tip, show, hide: () => { tip.hidden = true; } };
+  }
+  function yAxis(f, m, y, ticks, label) {
+    ticks.forEach(v => {
+      svgEl("line", { x1: m.l, x2: f.W - m.r, y1: y(v), y2: y(v), stroke: "var(--grid)" }, f.svg);
+      text(f.svg, m.l - 6, y(v) + 4, label(v), { "text-anchor": "end" });
+    });
+  }
+
+  // 공고별 사정률 추이
+  function drawTrend() {
+    const m = { t: 16, r: 14, b: 30, l: 48 };
+    const f = frame($("trend-chart"), 280, m);
+    f.svg.setAttribute("aria-label", "공고 20건의 실제 사정률과 아미이앤씨 투찰 기준 사정률");
+    const lo = 97, hi = 103;
+    const n = BIDS.length;
+    const x = i => m.l + (i + 0.5) * f.pw / n;
+    const y = v => m.t + (hi - Math.min(hi, Math.max(lo, v))) / (hi - lo) * f.ph;
+    yAxis(f, m, y, [97, 98, 99, 100, 101, 102, 103], v => v + "%");
+    svgEl("line", { x1: m.l, x2: f.W - m.r, y1: y(mean), y2: y(mean), stroke: "var(--ref)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, f.svg);
+    text(f.svg, f.W - m.r, y(mean) - 6, `평균 ${pct(mean)}%`, { "text-anchor": "end", fill: "var(--ink)" });
+
+    // 아미 투찰과 실제 사정률 사이 간격
+    BIDS.forEach((b, i) => {
+      const me = mine(b);
+      svgEl("line", { x1: x(i), x2: x(i), y1: y(b.assess), y2: y(me.impliedAssess), stroke: "var(--line)", "stroke-width": 2 }, f.svg);
+    });
+    const line = BIDS.map((b, i) => `${i ? "L" : "M"}${x(i)},${y(b.assess)}`).join("");
+    svgEl("path", { d: line, fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round" }, f.svg);
+    BIDS.forEach((b, i) => {
+      const me = mine(b);
+      svgEl("circle", { cx: x(i), cy: y(me.impliedAssess), r: 4.5, fill: "var(--s2)", stroke: "var(--panel)", "stroke-width": 2 }, f.svg);
+      svgEl("circle", { cx: x(i), cy: y(b.assess), r: 4.5, fill: "var(--s1)", stroke: "var(--panel)", "stroke-width": 2 }, f.svg);
+      if (i % (f.W < 560 ? 4 : 2) === 0) text(f.svg, x(i), f.H - m.b + 18, i + 1, { "text-anchor": "middle" });
+      const hit = svgEl("rect", { x: x(i) - f.pw / n / 2, y: m.t, width: f.pw / n, height: f.ph, fill: "transparent" }, f.svg);
+      hit.addEventListener("pointerenter", () => f.show(
+        `<b>${i + 1}. ${b.title}</b><br>실제 사정률 ${pct(b.assess)}%<br>아미 투찰 기준 ${pct(me.impliedAssess)}% · ${me.result}`,
+        x(i), Math.min(y(b.assess), y(me.impliedAssess))));
+      hit.addEventListener("pointerleave", f.hide);
+    });
+    text(f.svg, m.l, f.H - 2, "공고 순번", { "font-size": 10.5 });
+  }
+
+  // 사정률 분포
+  function drawHist() {
+    const m = { t: 16, r: 10, b: 30, l: 30 };
+    const f = frame($("hist-chart"), 230, m);
+    f.svg.setAttribute("aria-label", "사정률 0.5%p 구간별 공고 수");
+    const edges = [];
+    for (let v = 97; v < 103; v += 0.5) edges.push(v);
+    const counts = edges.map(a => rates.filter(r => r >= a && (r < a + 0.5 || (a === 102.5 && r <= 103))).length);
+    const yMax = Math.max(4, Math.ceil(Math.max(...counts) / 2) * 2 + 1);
+    const y = v => m.t + f.ph - v / yMax * f.ph;
+    const ticks = [];
+    for (let v = 0; v <= yMax; v += yMax > 6 ? 2 : 1) ticks.push(v);
+    yAxis(f, m, y, ticks, v => v);
+    const slot = f.pw / edges.length, gap = 3, bw = slot - gap;
+    edges.forEach((a, i) => {
+      const x = m.l + i * slot + gap / 2;
+      svgEl("path", { d: barPath(x, y(counts[i]), bw, y(0) - y(counts[i]), 4), fill: "var(--s1)" }, f.svg);
+      if (i % 2 === 0) text(f.svg, x, f.H - m.b + 16, a, { "text-anchor": "middle" });
+      const hit = svgEl("rect", { x: m.l + i * slot, y: m.t, width: slot, height: f.ph, fill: "transparent" }, f.svg);
+      hit.addEventListener("pointerenter", () => f.show(`<b>${a.toFixed(1)}–${(a + 0.5).toFixed(1)}%</b><br>${counts[i]}건`, x + bw / 2, y(counts[i])));
+      hit.addEventListener("pointerleave", f.hide);
+    });
+    text(f.svg, f.W - m.r, f.H - m.b + 16, "103", { "text-anchor": "middle" });
+    svgEl("line", { x1: m.l, x2: f.W - m.r, y1: y(0), y2: y(0), stroke: "var(--muted)" }, f.svg);
+    const inBand = rates.filter(r => r >= mean - sd && r <= mean + sd).length;
+    $("hist-sub").textContent = `평균 ${pct(mean)}%, 표준편차 ${pct(sd)}%p. 20건 중 ${inBand}건이 평균 ±1 표준편차(${pct(mean - sd, 2)}–${pct(mean + sd, 2)}%) 안에 있습니다.`;
+  }
+
+  // 예비가격 번호 채택 횟수
+  function drawPick() {
+    const m = { t: 16, r: 10, b: 30, l: 30 };
+    const f = frame($("pick-chart"), 230, m);
+    f.svg.setAttribute("aria-label", "복수예비가격 1번부터 15번까지 예정가격 산정에 채택된 횟수");
+    const counts = Array(15).fill(0);
+    BIDS.forEach(b => b.chosen.forEach(i => counts[i]++));
+    const expected = BIDS.length * 4 / 15;
+    const yMax = Math.max(Math.ceil(Math.max(...counts, expected) + 1), 6);
+    const y = v => m.t + f.ph - v / yMax * f.ph;
+    const ticks = [];
+    for (let v = 0; v <= yMax; v += yMax > 8 ? 2 : 1) ticks.push(v);
+    yAxis(f, m, y, ticks, v => v);
+    const slot = f.pw / 15, gap = 3, bw = slot - gap;
+    counts.forEach((c, i) => {
+      const x = m.l + i * slot + gap / 2;
+      svgEl("path", { d: barPath(x, y(c), bw, y(0) - y(c), 4), fill: "var(--s1)" }, f.svg);
+      if (f.W >= 360 || i % 2 === 0) text(f.svg, x + bw / 2, f.H - m.b + 16, i + 1, { "text-anchor": "middle" });
+      const hit = svgEl("rect", { x: m.l + i * slot, y: m.t, width: slot, height: f.ph, fill: "transparent" }, f.svg);
+      hit.addEventListener("pointerenter", () => f.show(`<b>${i + 1}번</b> 예비가격<br>${c}회 채택 · 기대값 ${expected.toFixed(1)}회`, x + bw / 2, y(c)));
+      hit.addEventListener("pointerleave", f.hide);
+    });
+    svgEl("line", { x1: m.l, x2: f.W - m.r, y1: y(expected), y2: y(expected), stroke: "var(--ref)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, f.svg);
+    text(f.svg, f.W - m.r, y(expected) - 6, `기대값 ${expected.toFixed(1)}`, { "text-anchor": "end", fill: "var(--ink)" });
+    svgEl("line", { x1: m.l, x2: f.W - m.r, y1: y(0), y2: y(0), stroke: "var(--muted)" }, f.svg);
+    const top = counts.map((c, i) => [c, i + 1]).sort((a, b) => b[0] - a[0]).slice(0, 3);
+    $("pick-sub").textContent = `예정가격 계산에 쓰인 4개 번호를 셌습니다. 번호마다 기대값은 ${expected.toFixed(1)}회이고, 가장 많이 채택된 번호는 ${top.map(([c, n]) => `${n}번(${c}회)`).join(", ")}입니다. 추첨은 무작위라 번호 쏠림은 다음 공고를 예측하지 못합니다.`;
+  }
+
+  // 가상 낙찰 시뮬레이션
+  function drawSim() {
+    const m = { t: 18, r: 14, b: 32, l: 34 };
+    const f = frame($("sim-chart"), 250, m);
+    f.svg.setAttribute("aria-label", "투찰 사정률별 과거 20건 가상 낙찰 횟수");
+    const lo = 97, hi = 103;
+    const x = v => m.l + (v - lo) / (hi - lo) * f.pw;
+    const yMax = Math.max(4, bestWins + 1);
+    const y = v => m.t + f.ph - v / yMax * f.ph;
+    const ticks = [];
+    for (let v = 0; v <= yMax; v++) ticks.push(v);
+    yAxis(f, m, y, ticks, v => v);
+    for (let v = 97; v <= 103; v++) text(f.svg, x(v), f.H - m.b + 16, v + "%", { "text-anchor": "middle" });
+
+    // 최적 구간 표시
+    svgEl("rect", { x: x(bestLo), y: m.t, width: Math.max(2, x(bestHi) - x(bestLo)), height: f.ph, fill: "var(--accent-soft)" }, f.svg);
+    // 계단형 면적 + 선
+    let d = `M${x(lo)},${y(0)}`;
+    SIM.forEach((s, i) => {
+      const nx = i + 1 < SIM.length ? x(SIM[i + 1].x) : x(hi);
+      d += `L${x(s.x)},${y(s.wins)}L${nx},${y(s.wins)}`;
+    });
+    svgEl("path", { d: d + `L${x(hi)},${y(0)}Z`, fill: "var(--s1)", "fill-opacity": 0.14 }, f.svg);
+    svgEl("path", { d: d.replace(/^M[^L]+/, `M${x(lo)},${y(SIM[0].wins)}`), fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round" }, f.svg);
+    svgEl("line", { x1: m.l, x2: f.W - m.r, y1: y(0), y2: y(0), stroke: "var(--muted)" }, f.svg);
+    const lblX = Math.min(Math.max(x(bestMid), m.l + 80), f.W - m.r - 80);
+    text(f.svg, lblX, m.t + 12, `최다 ${bestWins}건 · ${pct(bestLo, 2)}–${pct(bestHi, 2)}%`, { "text-anchor": "middle", fill: "var(--ink)", "font-weight": 600 });
+
+    // 크로스헤어
+    const cross = svgEl("line", { y1: m.t, y2: y(0), stroke: "var(--ink)", "stroke-width": 1, opacity: 0 }, f.svg);
+    const dot = svgEl("circle", { r: 4.5, fill: "var(--s1)", stroke: "var(--panel)", "stroke-width": 2, opacity: 0 }, f.svg);
+    const hit = svgEl("rect", { x: m.l, y: m.t, width: f.pw, height: f.ph, fill: "transparent" }, f.svg);
+    hit.addEventListener("pointermove", e => {
+      const r = f.svg.getBoundingClientRect();
+      const v = lo + (e.clientX - r.left - m.l) / f.pw * (hi - lo);
+      const s = SIM[Math.min(600, Math.max(0, Math.round((v - lo) * 100)))];
+      cross.setAttribute("x1", x(s.x)); cross.setAttribute("x2", x(s.x)); cross.setAttribute("opacity", 0.5);
+      dot.setAttribute("cx", x(s.x)); dot.setAttribute("cy", y(s.wins)); dot.setAttribute("opacity", 1);
+      f.show(`사정률 <b>${pct(s.x, 2)}%</b>로 투찰<br>20건 중 <b>${s.wins}건</b> 낙찰`, x(s.x), y(s.wins));
+    });
+    hit.addEventListener("pointerleave", () => { f.hide(); cross.setAttribute("opacity", 0); dot.setAttribute("opacity", 0); });
+  }
+
+  // ---------- 요약 ----------
+  function renderSummary() {
+    const myWins = BIDS.filter(b => mine(b).result === "낙찰").length;
+    const myLow = BIDS.filter(b => mine(b).result === "하한 미달").length;
+    const tiles = [
+      ["분석 공고", `${BIDS.length}건`, `업체 5곳씩 참가 · ${BIDS[0].date.replaceAll("-", ".")}–${BIDS.at(-1).date.slice(5).replace("-", ".")}`],
+      ["평균 사정률", `${pct(mean)}%`, `중앙값 ${pct(median)}% · 표준편차 ${pct(sd)}%p`],
+      ["사정률 범위", `${pct(sortedRates[0], 2)}–${pct(sortedRates.at(-1), 2)}%`, `폭 ${pct(sortedRates.at(-1) - sortedRates[0], 2)}%p`],
+      [`${ME} 결과`, `낙찰 ${myWins}건`, `하한 미달 ${myLow}건 · 탈락 ${BIDS.length - myWins - myLow}건`],
+    ];
+    $("summary").innerHTML = tiles.map(([k, v, d]) =>
+      `<div class="tile"><span class="k">${k}</span><span class="v num">${v}</span><span class="d">${d}</span></div>`).join("");
+  }
+
+  // ---------- 계산기 ----------
+  const parseNum = s => Number(String(s).replace(/[^\d.]/g, ""));
+  let rateTouched = false;
+
+  function renderCalc() {
+    const base = parseNum($("in-base").value);
+    if (!rateTouched && base) $("in-rate").value = lowerRateFor(base).toFixed(3);
+    const rate = parseNum($("in-rate").value);
+    const custom = parseNum($("in-assess").value);
+    $("rate-hint").textContent = base ? `기초금액 ${eok(base)} 기준 예시 값 ${lowerRateFor(base).toFixed(3)}%. 공고문의 비율로 바꿔 넣으세요.` : "";
+    const table = $("suggest");
+    if (!base || !rate) {
+      table.innerHTML = `<tr><td>기초금액과 낙찰하한율을 숫자로 넣으면 투찰금액이 나옵니다.</td></tr>`;
+      return;
+    }
+    const rows = [
+      ["시뮬레이션 최다 낙찰 구간 중앙", bestMid, `${pct(bestLo, 2)}–${pct(bestHi, 2)}%에서 과거 ${bestWins}건 낙찰`, true],
+      ["평균 사정률", mean, `과거 ${simulate(mean).wins}건 낙찰`],
+      ["중앙값 사정률", median, `과거 ${simulate(median).wins}건 낙찰`],
+      ["평균 − 1 표준편차", mean - sd, `하한 미달 위험이 낮은 쪽 · 과거 ${simulate(mean - sd).wins}건 낙찰`],
+    ];
+    if (custom >= 90 && custom <= 110) rows.push(["직접 정한 사정률", custom, `과거 ${simulate(custom).wins}건 낙찰`]);
+    table.innerHTML = `<thead><tr><th>기준</th><th>사정률</th><th>투찰금액</th></tr></thead><tbody>` +
+      rows.map(([k, a, why, best]) => {
+        const amt = Math.floor(base * a / 100 * rate / 100);
+        return `<tr class="${best ? "best" : ""}"><td>${k}<span class="why">${why}</span></td><td class="num">${pct(a)}%</td><td class="num amt">${won(amt)}원</td></tr>`;
+      }).join("") + "</tbody>";
+  }
+  $("in-base").addEventListener("input", renderCalc);
+  $("in-base").addEventListener("blur", e => { const v = parseNum(e.target.value); if (v) e.target.value = won(v); });
+  $("in-rate").addEventListener("input", () => { rateTouched = true; renderCalc(); });
+  $("in-assess").addEventListener("input", renderCalc);
+
+  // ---------- 공고 목록 ----------
+  function chip(result) {
+    const cls = result === "낙찰" ? "win" : result === "하한 미달" ? "low" : "";
+    const icon = result === "낙찰" ? "✓" : result === "하한 미달" ? "▼" : "–";
+    return `<span class="chip ${cls}">${icon} ${result}</span>`;
+  }
+
+  function detailHtml(b) {
+    const prelim = b.prelim.map((p, i) => {
+      const sel = b.chosen.includes(i);
+      return `<div class="num${sel ? " sel" : ""}"><span>${i + 1}번 ${sel ? "· 채택" : ""}</span>${won(p)}</div>`;
+    }).join("");
+    const bids = [...b.bids].sort((a, c) => a.amount - c.amount).map(x =>
+      `<tr class="${x.company === ME ? "me" : ""}"><td>${x.company}</td><td class="num">${won(x.amount)}</td><td class="num">${pct(x.impliedAssess)}%</td><td class="num">${x.pick.map(i => i + 1).join(", ")}</td><td>${chip(x.result)}</td></tr>`).join("");
+    return `<div class="detail-grid">
+      <div><h4>복수예비가격 15개 (파란 칸이 채택된 4개)</h4><div class="prelim">${prelim}</div>
+        <p class="formula num">예정가격 ${won(b.planned)}원 = 채택 4개 평균<br>사정률 ${pct(b.assess)}% = ${won(b.planned)} ÷ ${won(b.base)}<br>낙찰하한가 ${won(b.floor)}원 = 예정가격 × ${b.lowerRate}%</p></div>
+      <div><h4>업체별 투찰 (낮은 금액 순)</h4>
+        <table class="bids"><thead><tr><th>업체</th><th>투찰금액</th><th>기준 사정률</th><th>고른 번호</th><th>결과</th></tr></thead><tbody>${bids}</tbody></table></div>
+    </div>`;
+  }
+
+  function renderList() {
+    const t = $("list");
+    t.innerHTML = `<thead><tr><th>개찰일</th><th>공고명</th><th>기초금액</th><th>사정률</th><th>하한율</th><th>낙찰 업체</th><th>아미 투찰 기준</th><th>아미 결과</th></tr></thead>`;
+    const tb = document.createElement("tbody");
+    BIDS.forEach((b, i) => {
+      const me = mine(b), w = winnerOf(b);
+      const tr = document.createElement("tr");
+      tr.className = "row";
+      tr.tabIndex = 0;
+      tr.setAttribute("aria-expanded", "false");
+      tr.innerHTML = `<td class="num"><span class="caret">▸</span> ${b.date.slice(5).replace("-", ".")}</td>
+        <td class="title">${b.title}<br><span class="sub num">${b.no}</span></td>
+        <td class="num">${eok(b.base)}</td><td class="num">${pct(b.assess)}%</td><td class="num">${b.lowerRate}%</td>
+        <td>${w ? w.company : "유찰"}</td><td class="num">${pct(me.impliedAssess)}%</td><td>${chip(me.result)}</td>`;
+      const dr = document.createElement("tr");
+      dr.className = "detail";
+      dr.hidden = true;
+      dr.innerHTML = `<td colspan="8">${detailHtml(b)}</td>`;
+      const toggle = () => {
+        dr.hidden = !dr.hidden;
+        tr.classList.toggle("open", !dr.hidden);
+        tr.setAttribute("aria-expanded", String(!dr.hidden));
+      };
+      tr.addEventListener("click", toggle);
+      tr.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+      tb.append(tr, dr);
+    });
+    t.append(tb);
+  }
+
+  function drawCharts() { drawTrend(); drawHist(); drawPick(); drawSim(); }
+
+  if (!BIDS.length) {
+    $("summary").textContent = "데이터가 없습니다. bid/make_data.py를 실행해 주세요.";
+    return;
+  }
+  renderSummary();
+  drawCharts();
+  renderCalc();
+  renderList();
+  // 첫 번째 공고는 펼쳐 둔다
+  $("list").querySelector("tr.row").click();
+
+  let lastW = document.body.clientWidth;
+  new ResizeObserver(() => {
+    const w = document.body.clientWidth;
+    if (Math.abs(w - lastW) < 8) return;
+    lastW = w;
+    drawCharts();
+  }).observe(document.body);
+})();
+</script>
+</body>
+</html>
